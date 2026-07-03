@@ -83,31 +83,25 @@ def rag_node(state: ChatState) -> ChatState:
 
 def extract_candidate_entities(message: str) -> list[str]:
     """
-    Naive entity-name guesser: pulls out capitalized word groups as
-    candidates to look up in the knowledge graph. e.g.
-    "How does Knowledge Graph relate to RAG?" -> ["Knowledge Graph", "RAG"]
-    Good enough as a first pass - swap for an LLM call later for better recall.
+    Asks the LLM which entity name(s) to look up in the knowledge graph
+    for this message. More robust than capitalization-based guessing -
+    catches lowercase mentions like "what is a knowledge graph?".
     """
-    words = message.replace("?", "").replace(",", "").split()
-    candidates = []
-    current = []
-    for w in words:
-        if w[:1].isupper():
-            current.append(w)
-        else:
-            if current:
-                candidates.append(" ".join(current))
-                current = []
-    if current:
-        candidates.append(" ".join(current))
-    # de-duplicate, keep order
-    seen = set()
-    unique = []
-    for c in candidates:
-        if c.lower() not in seen:
-            seen.add(c.lower())
-            unique.append(c)
-    return unique[:3]  # cap it - avoid hammering Neo4j on long messages
+    llm = get_llm(temperature=0)
+    prompt = f"""Extract the main entity or entities (people, concepts, technologies,
+organizations) this question is asking about, so they can be looked up in a
+knowledge graph. Return ONLY a comma-separated list of short entity names,
+using title case (e.g. "Knowledge Graph, Neo4j"). If there are no clear
+entities, return NONE.
+
+Question: "{message}"
+
+Entities:"""
+    result = llm.invoke(prompt).content.strip()
+    if result.upper() == "NONE" or not result:
+        return []
+    entities = [e.strip() for e in result.split(",") if e.strip()]
+    return entities[:3]
 
 
 def kg_node(state: ChatState) -> ChatState:
@@ -117,6 +111,7 @@ def kg_node(state: ChatState) -> ChatState:
     context with explicit relationships.
     """
     entities = extract_candidate_entities(state["message"])
+    print(f"[kg_node] candidate entities: {entities}")
     if not entities:
         return {"graph_facts": ""}
 
@@ -128,6 +123,7 @@ def kg_node(state: ChatState) -> ChatState:
                 facts_lines.append(f"{r['subject']} --{r['relation']}--> {r['object']}")
 
     graph_facts = "\n".join(facts_lines) if facts_lines else ""
+    print(f"[kg_node] graph_facts:\n{graph_facts if graph_facts else '(none found)'}")
     return {"graph_facts": graph_facts}
 
 
