@@ -28,6 +28,7 @@ from models import get_llm
 from memory.memory_store import MemoryStore, extract_and_store_preferences
 from rag.rag_pipeline import retrieve_context
 from tools.dynamic_tools import web_search_tool, format_search_results
+from knowledge_graph.kg_builder import KnowledgeGraph
 
 memory_store = MemoryStore()
 
@@ -41,6 +42,7 @@ class ChatState(TypedDict, total=False):
     context: str
     sources: list[str]
     tool_results: str
+    graph_facts: str
     answer: str
 
 
@@ -76,7 +78,57 @@ Respond with ONLY one word: rag, tool, or direct."""
 
 def rag_node(state: ChatState) -> ChatState:
     context, sources = retrieve_context(state["message"])
-    return {**state, "context": context, "sources": sources}
+    return {"context": context, "sources": sources}
+
+
+def extract_candidate_entities(message: str) -> list[str]:
+    """
+    Naive entity-name guesser: pulls out capitalized word groups as
+    candidates to look up in the knowledge graph. e.g.
+    "How does Knowledge Graph relate to RAG?" -> ["Knowledge Graph", "RAG"]
+    Good enough as a first pass - swap for an LLM call later for better recall.
+    """
+    words = message.replace("?", "").replace(",", "").split()
+    candidates = []
+    current = []
+    for w in words:
+        if w[:1].isupper():
+            current.append(w)
+        else:
+            if current:
+                candidates.append(" ".join(current))
+                current = []
+    if current:
+        candidates.append(" ".join(current))
+    # de-duplicate, keep order
+    seen = set()
+    unique = []
+    for c in candidates:
+        if c.lower() not in seen:
+            seen.add(c.lower())
+            unique.append(c)
+    return unique[:3]  # cap it - avoid hammering Neo4j on long messages
+
+
+def kg_node(state: ChatState) -> ChatState:
+    """
+    Pulls structured (subject, relation, object) facts from Neo4j for any
+    entities mentioned in the query, to complement the unstructured RAG
+    context with explicit relationships.
+    """
+    entities = extract_candidate_entities(state["message"])
+    if not entities:
+        return {"graph_facts": ""}
+
+    facts_lines = []
+    with KnowledgeGraph() as kg:
+        for entity in entities:
+            relations = kg.query_neighbors(entity, depth=1)
+            for r in relations[:5]:  # cap per entity to keep prompt short
+                facts_lines.append(f"{r['subject']} --{r['relation']}--> {r['object']}")
+
+    graph_facts = "\n".join(facts_lines) if facts_lines else ""
+    return {"graph_facts": graph_facts}
 
 
 def tool_node(state: ChatState) -> ChatState:
@@ -94,6 +146,8 @@ def model_node(state: ChatState) -> ChatState:
     grounding = ""
     if state.get("route") == "rag":
         grounding = f"Static knowledge context:\n{state.get('context', '')}"
+        if state.get("graph_facts"):
+            grounding += f"\n\nStructured knowledge graph facts:\n{state.get('graph_facts')}"
     elif state.get("route") == "tool":
         grounding = f"Live search results:\n{state.get('tool_results', '')}"
 
@@ -124,8 +178,18 @@ and personalize the tone/content using known preferences if appropriate."""
 # Routing function (conditional edge)
 # ---------------------------------------------------------------------------
 
-def route_decision(state: ChatState) -> str:
-    return state["route"]
+def route_decision(state: ChatState) -> str | list[str]:
+    """
+    Returns the node(s) to run next. For "rag", we fan out to BOTH
+    rag_node and kg_node in parallel - LangGraph waits for both to
+    finish before running model_node.
+    """
+    if state["route"] == "rag":
+        return ["rag_node", "kg_node"]
+    elif state["route"] == "tool":
+        return "tool_node"
+    else:
+        return "model_node"
 
 
 # ---------------------------------------------------------------------------
@@ -138,19 +202,28 @@ def build_graph():
     graph.add_node("memory_node", memory_node)
     graph.add_node("router_node", router_node)
     graph.add_node("rag_node", rag_node)
+    graph.add_node("kg_node", kg_node)
     graph.add_node("tool_node", tool_node)
     graph.add_node("model_node", model_node)
 
     graph.add_edge(START, "memory_node")
     graph.add_edge("memory_node", "router_node")
 
+    # Single conditional edge. route_decision can return either one node
+    # name or a list of node names (for the "rag" fan-out case above).
     graph.add_conditional_edges(
         "router_node",
         route_decision,
-        {"rag": "rag_node", "tool": "tool_node", "direct": "model_node"},
+        {
+            "rag_node": "rag_node",
+            "kg_node": "kg_node",
+            "tool_node": "tool_node",
+            "model_node": "model_node",
+        },
     )
 
     graph.add_edge("rag_node", "model_node")
+    graph.add_edge("kg_node", "model_node")
     graph.add_edge("tool_node", "model_node")
     graph.add_edge("model_node", END)
 

@@ -8,9 +8,13 @@ from duckduckgo_search import DDGS
 
 def web_search_tool(query: str, max_results: int = 5) -> list[dict]:
     """Live web search - used for queries needing up-to-date information."""
-    with DDGS() as ddgs:
-        results = list(ddgs.text(query, max_results=max_results))
-    return [{"title": r.get("title"), "snippet": r.get("body"), "url": r.get("href")} for r in results]
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=max_results))
+        return [{"title": r.get("title"), "snippet": r.get("body"), "url": r.get("href")} for r in results]
+    except Exception as e:
+        print(f"[web_search_tool] Search failed: {e}")
+        return []
 
 
 def format_search_results(results: list[dict]) -> str:
