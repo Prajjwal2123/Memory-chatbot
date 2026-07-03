@@ -18,3 +18,4 @@ tiktoken==0.8.0
 ragas==0.2.6
 datasets==3.1.0
 duckduckgo-search==6.3.5
+langchain-groq==0.2.1

@@ -13,7 +13,8 @@ class Settings:
     # --- LLM ---
     # Set USE_LOCAL_MODELS=true to run entirely on free local models via Ollama
     # (no OpenAI key/billing needed). Requires Ollama installed and running.
-    USE_LOCAL_MODELS: bool = os.getenv("USE_LOCAL_MODELS", "true").lower() == "true"
+    # "local" (Ollama, free, your machine) | "groq" (free hosted API) | "openai" (paid)
+    LLM_BACKEND: str = os.getenv("LLM_BACKEND", "local")
 
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
@@ -25,6 +26,9 @@ class Settings:
     LOCAL_EMBEDDING_MODEL: str = os.getenv(
         "LOCAL_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
     )
+    # --- Groq (used when LLM_BACKEND=groq) ---
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
     # --- Neo4j ---
     NEO4J_URI: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")

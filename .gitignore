@@ -4,7 +4,7 @@ __pycache__/
 .env
 data/raw/
 data/processed/
-data/chroma/
+#data/chroma/
 data/memory.db
 evaluation/eval_results.csv
 .vscode/
