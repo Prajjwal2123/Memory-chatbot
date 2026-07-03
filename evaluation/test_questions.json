@@ -1,0 +1,14 @@
+[
+  {
+    "question": "What is a knowledge graph?",
+    "ground_truth": "A knowledge graph is a structured representation of knowledge as entities and the relationships between them, often stored as a graph database."
+  },
+  {
+    "question": "What is retrieval-augmented generation?",
+    "ground_truth": "Retrieval-augmented generation (RAG) is a technique that combines information retrieval with text generation, retrieving relevant documents to ground an LLM's response."
+  },
+  {
+    "question": "What is LangChain used for?",
+    "ground_truth": "LangChain is a framework for building applications powered by large language models, providing tools for chaining prompts, retrieval, memory, and agents."
+  }
+]

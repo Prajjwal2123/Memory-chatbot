@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Memory-Augmented Chatbot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0B1220;
+    --panel: #121B2E;
+    --panel-raised: #17223A;
+    --border: #223049;
+    --text: #E7ECF3;
+    --muted: #8592A6;
+    --faint: #56637A;
+
+    --accent-memory: #6FE3C4;
+    --accent-router: #E7ECF3;
+    --accent-rag: #4F8CFF;
+    --accent-tool: #F5A623;
+    --accent-direct: #9B7FE8;
+    --accent-model: #FF6B81;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  #app {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    height: 100vh;
+  }
+
+  @media (max-width: 860px) {
+    #app { grid-template-columns: 1fr; }
+    #trace-panel { display: none; }
+  }
+
+  /* ---------- Header ---------- */
+  #header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  #header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin: 0;
+    color: var(--text);
+  }
+
+  #header .sub {
+    font-size: 12px;
+    color: var(--faint);
+    margin-top: 2px;
+  }
+
+  #user-badge {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #user-badge input {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    width: 110px;
+  }
+
+  /* ---------- Chat column ---------- */
+  #chat-col {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    grid-row: 2;
+  }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .msg {
+    max-width: 72%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.bot { align-self: flex-start; align-items: flex-start; }
+
+  .bubble {
+    padding: 12px 16px;
+    border-radius: 12px;
+    line-height: 1.55;
+    font-size: 14.5px;
+    white-space: pre-wrap;
+  }
+  .msg.user .bubble {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-bottom-right-radius: 3px;
+  }
+  .msg.bot .bubble {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 3px;
+  }
+
+  .meta {
+    font-size: 10.5px;
+    color: var(--faint);
+    padding: 0 4px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .route-chip {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+  .route-chip.rag    { background: rgba(79,140,255,0.15); color: var(--accent-rag); }
+  .route-chip.tool   { background: rgba(245,166,35,0.15); color: var(--accent-tool); }
+  .route-chip.direct { background: rgba(155,127,232,0.15); color: var(--accent-direct); }
+
+  .sources {
+    font-size: 11px;
+    color: var(--faint);
+    padding: 0 4px;
+  }
+  .sources a { color: var(--faint); }
+
+  .typing {
+    font-size: 13px;
+    color: var(--faint);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* ---------- Input bar ---------- */
+  #input-bar {
+    display: flex;
+    gap: 10px;
+    padding: 16px 24px 22px;
+    border-top: 1px solid var(--border);
+  }
+
+  #input-bar textarea {
+    flex: 1;
+    resize: none;
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    height: 46px;
+    max-height: 140px;
+  }
+  #input-bar textarea:focus { outline: 2px solid var(--accent-rag); outline-offset: 1px; }
+
+  #send-btn {
+    background: var(--accent-rag);
+    color: #061224;
+    border: none;
+    border-radius: 10px;
+    padding: 0 22px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  #send-btn:disabled { opacity: 0.4; cursor: default; }
+  #send-btn:focus-visible { outline: 2px solid var(--text); }
+
+  /* ---------- Trace panel (signature element) ---------- */
+  #trace-panel {
+    grid-row: 2;
+    border-left: 1px solid var(--border);
+    padding: 26px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    overflow-y: auto;
+  }
+
+  #trace-panel h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--faint);
+    margin: 0 0 4px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .pipeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .node {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    position: relative;
+    padding-bottom: 22px;
+  }
+  .node:last-child { padding-bottom: 0; }
+
+  .node .stem {
+    width: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .node .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+    flex-shrink: 0;
+  }
+  .node .line {
+    width: 1px;
+    flex: 1;
+    background: var(--border);
+    margin-top: 2px;
+  }
+  .node:last-child .line { display: none; }
+
+  .node .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    color: var(--faint);
+    padding-top: -1px;
+    transition: color 0.3s ease;
+  }
+  .node .label .name { display: block; color: var(--muted); font-weight: 500; }
+  .node .label .desc { display: block; font-size: 10.5px; color: var(--faint); margin-top: 1px; }
+
+  .node.active .dot {
+    background: var(--node-color, var(--accent-rag));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--node-color, var(--accent-rag)) 20%, transparent);
+  }
+  .node.active .label .name { color: var(--text); }
+  .node.active .label .desc { color: var(--node-color, var(--accent-rag)); }
+
+  #memory-box, #sources-box {
+    border-top: 1px solid var(--border);
+    padding-top: 18px;
+  }
+
+  .kv {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    padding: 5px 0;
+    color: var(--muted);
+    border-bottom: 1px dashed var(--border);
+  }
+  .kv span:last-child { color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; text-align: right; max-width: 60%; }
+
+  .empty-hint {
+    font-size: 11.5px;
+    color: var(--faint);
+    font-style: italic;
+  }
+
+  #sources-box a {
+    display: block;
+    font-size: 11.5px;
+    color: var(--accent-rag);
+    text-decoration: none;
+    padding: 4px 0;
+    word-break: break-all;
+  }
+  #sources-box a:hover { text-decoration: underline; }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="header">
+    <div>
+      <h1>Memory-Augmented Chatbot</h1>
+      <div class="sub">RAG &nbsp;+&nbsp; Knowledge Graph &nbsp;+&nbsp; LangGraph routing &nbsp;+&nbsp; Long-term memory</div>
+    </div>
+    <div id="user-badge">
+      user_id <input id="user-id-input" value="user_123" />
+    </div>
+  </div>
+
+  <div id="chat-col">
+    <div id="messages"></div>
+    <div id="input-bar">
+      <textarea id="msg-input" placeholder="Ask something… try a knowledge question, then a 'latest news' question." rows="1"></textarea>
+      <button id="send-btn">Send</button>
+    </div>
+  </div>
+
+  <div id="trace-panel">
+    <div>
+      <h2>Pipeline trace</h2>
+      <div class="pipeline" id="pipeline"></div>
+    </div>
+
+    <div id="sources-box">
+      <h2>Sources used</h2>
+      <div id="sources-list" class="empty-hint">No sources yet — ask a knowledge question.</div>
+    </div>
+
+    <div id="memory-box">
+      <h2>Remembered about this user</h2>
+      <div id="memory-list" class="empty-hint">Nothing stored yet.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('msg-input');
+const sendBtn = document.getElementById('send-btn');
+const userIdInput = document.getElementById('user-id-input');
+const pipelineEl = document.getElementById('pipeline');
+const sourcesListEl = document.getElementById('sources-list');
+const memoryListEl = document.getElementById('memory-list');
+
+const NODES = [
+  { id: 'memory_node', name: 'Memory node',  desc: 'load user context',     color: 'var(--accent-memory)' },
+  { id: 'router_node', name: 'Router node',  desc: 'classify the query',    color: 'var(--accent-router)' },
+  { id: 'branch_node',  name: '—',           desc: '',                     color: 'var(--accent-rag)' },
+  { id: 'model_node',  name: 'Model node',   desc: 'synthesize answer',     color: 'var(--accent-model)' },
+];
+
+const ROUTE_INFO = {
+  rag:    { name: 'RAG node',  desc: 'static knowledge retrieval', color: 'var(--accent-rag)' },
+  tool:   { name: 'Tool node', desc: 'live web search',            color: 'var(--accent-tool)' },
+  direct: { name: 'Direct',    desc: 'skip retrieval',             color: 'var(--accent-direct)' },
+};
+
+function renderPipeline(activeRoute) {
+  pipelineEl.innerHTML = '';
+  NODES.forEach((node, i) => {
+    let display = node;
+    if (node.id === 'branch_node' && activeRoute) {
+      display = ROUTE_INFO[activeRoute];
+    }
+    const active = activeRoute && (node.id !== 'branch_node' || true);
+    const el = document.createElement('div');
+    el.className = 'node' + (activeRoute ? ' active' : '');
+    el.style.setProperty('--node-color', display.color);
+    el.innerHTML = `
+      <div class="stem"><div class="dot"></div><div class="line"></div></div>
+      <div class="label"><span class="name">${display.name}</span><span class="desc">${display.desc}</span></div>
+    `;
+    pipelineEl.appendChild(el);
+  });
+}
+renderPipeline(null);
+
+function addMessage(role, text, meta) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+
+  if (meta && meta.route) {
+    const metaRow = document.createElement('div');
+    metaRow.className = 'meta';
+    metaRow.innerHTML = `<span class="route-chip ${meta.route}">${meta.route}</span>`;
+    wrap.appendChild(metaRow);
+  }
+
+  messagesEl.appendChild(wrap);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return wrap;
+}
+
+function renderSources(sources) {
+  if (!sources || sources.length === 0) {
+    sourcesListEl.innerHTML = '';
+    sourcesListEl.className = 'empty-hint';
+    sourcesListEl.textContent = 'No sources for this answer.';
+    return;
+  }
+  sourcesListEl.className = '';
+  sourcesListEl.innerHTML = sources.map(s => `<a href="${s}" target="_blank" rel="noopener">${s}</a>`).join('');
+}
+
+async function refreshMemory() {
+  const userId = userIdInput.value.trim() || 'user_123';
+  try {
+    const res = await fetch(`${API_BASE}/memory/${encodeURIComponent(userId)}`);
+    const data = await res.json();
+    const prefs = data.preferences || {};
+    const keys = Object.keys(prefs);
+    if (keys.length === 0) {
+      memoryListEl.className = 'empty-hint';
+      memoryListEl.textContent = 'Nothing stored yet — try "my name is..." or "I like...".';
+    } else {
+      memoryListEl.className = '';
+      memoryListEl.innerHTML = keys.map(k => `<div class="kv"><span>${k}</span><span>${prefs[k]}</span></div>`).join('');
+    }
+  } catch (e) { /* memory panel is best-effort */ }
+}
+
+async function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  const userId = userIdInput.value.trim() || 'user_123';
+
+  addMessage('user', text);
+  inputEl.value = '';
+  inputEl.style.height = '46px';
+  sendBtn.disabled = true;
+
+  const typingEl = addMessage('bot', 'thinking…');
+  typingEl.querySelector('.bubble').classList.add('typing');
+  renderPipeline('rag'); // lights the pipeline while waiting, refined once we know the real route
+
+  try {
+    const res = await fetch(`${API_BASE}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, message: text }),
+    });
+    const data = await res.json();
+
+    typingEl.remove();
+    addMessage('bot', data.answer || '(no answer returned)', { route: data.route });
+    renderPipeline(data.route);
+    renderSources(data.sources);
+    refreshMemory();
+  } catch (err) {
+    typingEl.remove();
+    addMessage('bot', 'Error reaching the API. Is uvicorn still running on :8000?');
+    renderPipeline(null);
+  } finally {
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+}
+
+sendBtn.addEventListener('click', sendMessage);
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = '46px';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + 'px';
+});
+userIdInput.addEventListener('change', refreshMemory);
+
+// Greet
+addMessage('bot', "Hi — I'm grounded in a scraped Wikipedia knowledge base (RAG), a Neo4j knowledge graph, and I remember what you tell me across turns. Ask me something.");
+refreshMemory();
+</script>
+
+</body>
+</html>
