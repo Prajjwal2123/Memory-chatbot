@@ -4,6 +4,12 @@ FastAPI service exposing the memory-augmented chatbot.
 Run with:
     uvicorn api.main:app --reload --port 8000
 """
+from fastapi import UploadFile, File
+from data_pipeline.document_loader import extract_text_from_upload
+from data_pipeline.cleaner import clean_text
+from data_pipeline.chunker import chunk_documents
+from vectorstore.embed_store import index_chunks
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -62,3 +68,30 @@ def query_kg(entity: str, depth: int = 1):
     """Inspect the knowledge graph neighborhood of an entity."""
     with KnowledgeGraph() as kg:
         return {"entity": entity, "relations": kg.query_neighbors(entity, depth=depth)}
+
+@app.post("/upload")
+async def upload_document(file: UploadFile = File(...)):
+    """
+    Accepts a PDF or text file, extracts its text, cleans and chunks it,
+    and indexes it into the same Chroma vector store used for RAG answers.
+    Uploaded content becomes queryable immediately - no pipeline restart needed.
+    """
+    file_bytes = await file.read()
+    try:
+        raw_text = extract_text_from_upload(file.filename, file_bytes)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    if not raw_text.strip():
+        return {"error": "No extractable text found in the file."}
+
+    cleaned = clean_text(raw_text)
+    # chunk_documents expects {source: text} - use the filename as the source label
+    chunks = chunk_documents({file.filename: cleaned})
+    n_indexed = index_chunks(chunks)
+
+    return {
+        "filename": file.filename,
+        "chunks_indexed": n_indexed,
+        "message": f"'{file.filename}' is now searchable - ask me about it!",
+    }
