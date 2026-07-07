@@ -18,6 +18,8 @@ Graph shape:
        \    |    /
       model_node             (final answer synthesis, writes memory)
           |
+      self_check_node        (flags unsupported/hallucinated answers)
+          |
          END
 """
 from __future__ import annotations
@@ -138,7 +140,7 @@ def tool_node(state: ChatState) -> ChatState:
 
 def model_node(state: ChatState) -> ChatState:
     """Final synthesis: combines memory + (rag context or tool results) into an answer."""
-    llm = get_llm(temperature=0.3)
+    llm = get_llm(temperature=0.1)
 
     history_text = "\n".join(f"{h['role']}: {h['content']}" for h in state.get("history", []))
     prefs_text = ", ".join(f"{k}={v}" for k, v in state.get("preferences", {}).items()) or "none known"
@@ -151,7 +153,11 @@ def model_node(state: ChatState) -> ChatState:
     elif state.get("route") == "tool":
         grounding = f"Live search results:\n{state.get('tool_results', '')}"
 
-    prompt = f"""You are a personalized, memory-aware assistant.
+    prompt = f"""You are a precise, memory-aware assistant. Follow these rules strictly:
+- Every factual claim must be traceable to the grounding information below, the conversation history, or explicitly known user preferences. Do not state anything you cannot trace to one of these sources.
+- Do not connect two facts into one narrative unless the source material explicitly connects them.
+- If the grounding information doesn't answer the question, say so plainly rather than guessing or filling gaps.
+- Be concise and exact rather than exhaustive.
 
 Known user preferences: {prefs_text}
 Recent conversation:
@@ -161,8 +167,7 @@ Recent conversation:
 
 User: {state['message']}
 
-Respond helpfully and naturally. Use the grounding information above when relevant,
-and personalize the tone/content using known preferences if appropriate."""
+Respond using only the rules above."""
 
     answer = llm.invoke(prompt).content
 
@@ -172,6 +177,45 @@ and personalize the tone/content using known preferences if appropriate."""
     extract_and_store_preferences(memory_store, state["user_id"], state["message"])
 
     return {**state, "answer": answer}
+
+
+def self_check_node(state: ChatState) -> ChatState:
+    """
+    Hallucination check: verifies the generated answer is actually supported
+    by the retrieved context/graph facts, rather than trusting the model's
+    output blindly. Appends a visible caveat if it isn't well-grounded.
+    """
+    if state.get("route") not in ("rag", "tool"):
+        return {}  # nothing to check for direct/small-talk answers
+
+    grounding_text = (
+        state.get("context", "") + "\n" + state.get("graph_facts", "") + "\n" + state.get("tool_results", "")
+    ).strip()
+    if not grounding_text:
+        return {}
+
+    llm = get_llm(temperature=0.0)
+    check_prompt = f"""Does the ANSWER below rely only on facts present in the SOURCE, or
+does it include claims not supported by the SOURCE?
+
+SOURCE:
+{grounding_text}
+
+ANSWER:
+{state.get('answer', '')}
+
+Respond with ONLY one word: SUPPORTED or UNSUPPORTED."""
+
+    verdict = llm.invoke(check_prompt).content.strip().upper()
+
+    if "UNSUPPORTED" in verdict:
+        flagged_answer = (
+            state.get("answer", "")
+            + "\n\n⚠️ *Note: part of this answer may not be fully supported by the retrieved sources - verify independently.*"
+        )
+        return {"answer": flagged_answer}
+
+    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +249,7 @@ def build_graph():
     graph.add_node("kg_node", kg_node)
     graph.add_node("tool_node", tool_node)
     graph.add_node("model_node", model_node)
+    graph.add_node("self_check_node", self_check_node)
 
     graph.add_edge(START, "memory_node")
     graph.add_edge("memory_node", "router_node")
@@ -225,7 +270,8 @@ def build_graph():
     graph.add_edge("rag_node", "model_node")
     graph.add_edge("kg_node", "model_node")
     graph.add_edge("tool_node", "model_node")
-    graph.add_edge("model_node", END)
+    graph.add_edge("model_node", "self_check_node")
+    graph.add_edge("self_check_node", END)
 
     return graph.compile()
 
