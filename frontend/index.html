@@ -132,14 +132,17 @@
   #messages {
     flex: 1;
     overflow-y: auto;
-    padding: 32px 22px 20px;
+    padding: 36px 48px 24px;
     display: flex;
     flex-direction: column;
     gap: 20px;
+    max-width: 1100px;
+    width: 100%;
+    margin: 0 auto;
   }
 
   .msg {
-    max-width: 84%;
+    max-width: 90%;
     display: flex;
     flex-direction: column;
     gap: 7px;
@@ -214,18 +217,26 @@
   /* ---------- Input bar ---------- */
   #input-bar {
     display: flex;
+    align-items: stretch;
     gap: 10px;
-    padding: 14px 26px 26px;
+    padding: 16px 48px 32px;
+    flex-wrap: wrap;
+    max-width: 1100px;
+    width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
   }
 
   #input-shell {
-    flex: 1;
+    flex: 1 1 320px;
+    min-width: 220px;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
+    min-height: 52px;
     background: var(--panel-raised);
     border: 1px solid var(--border);
     border-radius: 16px;
-    padding: 6px 6px 6px 18px;
+    padding: 6px 8px 6px 20px;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
   #input-shell:focus-within {
@@ -241,46 +252,60 @@
     color: var(--text);
     font-family: 'Inter', sans-serif;
     font-size: 15.5px;
-    padding: 10px 0;
+    line-height: 1.5;
+    padding: 12px 0;
+    min-height: 24px;
     max-height: 140px;
   }
   #msg-input:focus { outline: none; }
-  #msg-input::placeholder { color: var(--faint); }
+  #msg-input::placeholder { color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   #send-btn {
+    flex-shrink: 0;
+    height: 52px;
     background: linear-gradient(135deg, var(--node-rag), #7C6BFF);
     color: #060A18;
     border: none;
     border-radius: 11px;
-    padding: 11px 20px;
+    padding: 0 24px;
     font-weight: 600;
-    font-size: 13px;
+    font-size: 13.5px;
     font-family: 'Space Grotesk', sans-serif;
     cursor: pointer;
     transition: transform 0.15s ease, opacity 0.15s ease;
+    white-space: nowrap;
   }
   #send-btn:hover:not(:disabled) { transform: translateY(-1px); }
   #send-btn:disabled { opacity: 0.35; cursor: default; }
   #send-btn:focus-visible { outline: 2px solid var(--text); }
 
   #upload-btn {
+    flex-shrink: 0;
+    height: 52px;
     background: var(--panel-raised);
     border: 1px solid var(--border);
     color: var(--muted);
     border-radius: 11px;
-    padding: 0 16px;
+    padding: 0 18px;
     font-weight: 500;
-    font-size: 13px;
+    font-size: 13.5px;
     font-family: 'Space Grotesk', sans-serif;
     cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
+    white-space: nowrap;
   }
   #upload-btn:hover { border-color: var(--node-memory); color: var(--node-memory); }
   #upload-btn:disabled { opacity: 0.35; cursor: default; }
-  #upload-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+  #upload-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  @media (max-width: 720px) {
+    #input-shell { flex-basis: 100%; }
+    #upload-btn, #send-btn { flex: 1; }
+    #upload-btn span, #send-btn span { display: inline; }
+  }
 
   .upload-toast {
     font-size: 11.5px;
@@ -437,7 +462,7 @@
     <div id="upload-toast-container"></div>
     <div id="input-bar">
       <div id="input-shell">
-        <textarea id="msg-input" placeholder="Ask something — try a knowledge question, then a 'latest news' question." rows="1"></textarea>
+        <textarea id="msg-input" placeholder="Ask a question, or upload a document..." rows="1"></textarea>
       </div>
       <input type="file" id="file-input" accept=".pdf,.txt,.md" style="display:none" />
       <button id="upload-btn" title="Upload a PDF or text file to add to the knowledge base">
