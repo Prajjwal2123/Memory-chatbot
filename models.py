@@ -3,12 +3,8 @@ Single place that decides which LLM / embedding backend to use.
 Every other module calls get_llm() / get_embeddings() instead of
 instantiating a provider directly, so switching backends is a
 one-line config change.
-
-Backends:
-- "local" : Ollama (free, runs on your machine) - good for local dev
-- "groq"  : Groq's free hosted API (fast, free tier, no card needed) - good for deployment
-- "openai": OpenAI (paid) - fallback if you ever want it
 """
+from functools import lru_cache
 from config import settings
 
 
@@ -38,8 +34,13 @@ def get_llm(temperature: float = 0.2):
         )
 
 
+@lru_cache(maxsize=1)
 def get_embeddings():
-    # Embeddings always run locally via HuggingFace - free, no API needed,
-    # works the same whether you're on your machine or deployed.
+    """
+    Cached (loaded once, reused forever) - HuggingFaceEmbeddings loads real
+    model weights from disk into memory. Without caching, every call would
+    reload the full model, causing repeated memory spikes that can exceed
+    limits on constrained hosts (e.g. Render's free 512MB tier).
+    """
     from langchain_huggingface import HuggingFaceEmbeddings
     return HuggingFaceEmbeddings(model_name=settings.LOCAL_EMBEDDING_MODEL)

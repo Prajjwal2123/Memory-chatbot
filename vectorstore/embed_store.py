@@ -6,14 +6,17 @@ from langchain.docstore.document import Document
 from config import settings
 from models import get_embeddings
 from data_pipeline.chunker import Chunk
+from functools import lru_cache
 
 
 def get_embedding_model():
     return get_embeddings()
 
 
+@lru_cache(maxsize=1)
 def get_vectorstore() -> Chroma:
-    """Load (or lazily create) the persistent Chroma collection."""
+    """Load (or lazily create) the persistent Chroma collection. Cached so
+    we don't reconnect/reload on every single query or upload."""
     return Chroma(
         collection_name=settings.CHROMA_COLLECTION,
         embedding_function=get_embedding_model(),
