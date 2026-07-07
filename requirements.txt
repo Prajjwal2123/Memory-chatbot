@@ -21,3 +21,4 @@ duckduckgo-search==6.3.5
 langchain-groq==0.2.1
 pypdf==5.1.0
 python-multipart==0.0.12
+fastembed==0.4.2

@@ -37,10 +37,10 @@ def get_llm(temperature: float = 0.2):
 @lru_cache(maxsize=1)
 def get_embeddings():
     """
-    Cached (loaded once, reused forever) - HuggingFaceEmbeddings loads real
-    model weights from disk into memory. Without caching, every call would
-    reload the full model, causing repeated memory spikes that can exceed
-    limits on constrained hosts (e.g. Render's free 512MB tier).
+    Cached, ONNX-based embeddings (fastembed) instead of sentence-transformers.
+    sentence-transformers pulls in PyTorch, which is heavy enough on its own
+    to push memory usage past free-tier hosting limits (512MB on Render) even
+    at idle. fastembed uses ONNX Runtime instead - no PyTorch, much lighter.
     """
-    from langchain_huggingface import HuggingFaceEmbeddings
-    return HuggingFaceEmbeddings(model_name=settings.LOCAL_EMBEDDING_MODEL)
+    from langchain_community.embeddings import FastEmbedEmbeddings
+    return FastEmbedEmbeddings(model_name="BAAI/bge-small-en-v1.5")
