@@ -10,6 +10,14 @@ ANSWER_PROMPT = """You are a helpful assistant. Answer the user's question using
 ONLY the context provided below. If the context does not contain the answer,
 say you don't have enough information rather than guessing.
 
+IMPORTANT: The context below may contain multiple separate passages from
+different parts of a document, or from different documents entirely. Do NOT
+assume two facts are related just because they appear near each other in the
+context. Only connect facts if the text explicitly states they are connected
+(e.g., the same sentence or bullet point). If you're not sure whether two
+pieces of information belong together, say so explicitly rather than merging
+them into one narrative.
+
 Context:
 {context}
 

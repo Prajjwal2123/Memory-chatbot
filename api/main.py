@@ -86,8 +86,17 @@ async def upload_document(file: UploadFile = File(...)):
         return {"error": "No extractable text found in the file."}
 
     cleaned = clean_text(raw_text)
-    # chunk_documents expects {source: text} - use the filename as the source label
     chunks = chunk_documents({file.filename: cleaned})
+
+    # Remove any previously-indexed chunks from this same filename first,
+    # so re-uploading the same file doesn't create duplicate, noisy copies
+    from vectorstore.embed_store import get_vectorstore
+    vs = get_vectorstore()
+    try:
+        vs.delete(where={"source": file.filename})
+    except Exception:
+        pass  # nothing to delete yet, that's fine
+
     n_indexed = index_chunks(chunks)
 
     return {
