@@ -108,22 +108,26 @@ def kg_node(state: ChatState) -> ChatState:
     """
     Pulls structured (subject, relation, object) facts from Neo4j for any
     entities mentioned in the query, to complement the unstructured RAG
-    context with explicit relationships.
+    context with explicit relationships. Fails gracefully if Neo4j is
+    unreachable, so the chatbot still answers using RAG alone instead of
+    crashing the whole request.
     """
     entities = extract_candidate_entities(state["message"])
-    print(f"[kg_node] candidate entities: {entities}")
     if not entities:
         return {"graph_facts": ""}
 
     facts_lines = []
-    with KnowledgeGraph() as kg:
-        for entity in entities:
-            relations = kg.query_neighbors(entity, depth=1)
-            for r in relations[:5]:  # cap per entity to keep prompt short
-                facts_lines.append(f"{r['subject']} --{r['relation']}--> {r['object']}")
+    try:
+        with KnowledgeGraph() as kg:
+            for entity in entities:
+                relations = kg.query_neighbors(entity, depth=1)
+                for r in relations[:5]:
+                    facts_lines.append(f"{r['subject']} --{r['relation']}--> {r['object']}")
+    except Exception as e:
+        print(f"[kg_node] Neo4j unavailable, falling back to RAG-only: {e}")
+        return {"graph_facts": ""}
 
     graph_facts = "\n".join(facts_lines) if facts_lines else ""
-    print(f"[kg_node] graph_facts:\n{graph_facts if graph_facts else '(none found)'}")
     return {"graph_facts": graph_facts}
 
 
