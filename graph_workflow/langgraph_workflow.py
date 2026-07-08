@@ -185,14 +185,16 @@ def self_check_node(state: ChatState) -> ChatState:
     by the retrieved context/graph facts, rather than trusting the model's
     output blindly. Appends a visible caveat if it isn't well-grounded.
     """
+    current_answer = state.get("answer", "")
+
     if state.get("route") not in ("rag", "tool"):
-        return {}  # nothing to check for direct/small-talk answers
+        return {"answer": current_answer}  # nothing to check for direct/small-talk answers
 
     grounding_text = (
         state.get("context", "") + "\n" + state.get("graph_facts", "") + "\n" + state.get("tool_results", "")
     ).strip()
     if not grounding_text:
-        return {}
+        return {"answer": current_answer}
 
     llm = get_llm(temperature=0.0)
     check_prompt = f"""Does the ANSWER below rely only on facts present in the SOURCE, or
@@ -202,7 +204,7 @@ SOURCE:
 {grounding_text}
 
 ANSWER:
-{state.get('answer', '')}
+{current_answer}
 
 Respond with ONLY one word: SUPPORTED or UNSUPPORTED."""
 
@@ -210,12 +212,12 @@ Respond with ONLY one word: SUPPORTED or UNSUPPORTED."""
 
     if "UNSUPPORTED" in verdict:
         flagged_answer = (
-            state.get("answer", "")
+            current_answer
             + "\n\n⚠️ *Note: part of this answer may not be fully supported by the retrieved sources - verify independently.*"
         )
         return {"answer": flagged_answer}
 
-    return {}
+    return {"answer": current_answer}
 
 
 # ---------------------------------------------------------------------------
