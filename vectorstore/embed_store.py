@@ -22,6 +22,15 @@ def get_vectorstore() -> Chroma:
         embedding_function=get_embedding_model(),
         persist_directory=settings.CHROMA_PERSIST_DIR,
     )
+    
+def get_all_chunks_from_source(source: str) -> list[str]:
+    """Fetch every chunk belonging to a specific uploaded file, bypassing
+    similarity ranking entirely - used for 'summarize/list everything in
+    my document' style questions where top-k similarity search can miss
+    sections that score lower but are still relevant."""
+    vs = get_vectorstore()
+    result = vs.get(where={"source": source})
+    return result.get("documents", [])    
 
 
 def index_chunks(chunks: list[Chunk]) -> int:

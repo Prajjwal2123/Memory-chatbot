@@ -82,7 +82,8 @@ Respond with ONLY one word: rag, tool, or direct."""
 
 
 def rag_node(state: ChatState) -> ChatState:
-    context, sources = retrieve_context(state["message"])
+    last_uploaded_file = state.get("preferences", {}).get("last_uploaded_file")
+    context, sources = retrieve_context(state["message"], last_uploaded_file=last_uploaded_file)
     return {"context": context, "sources": sources}
 
 

@@ -70,7 +70,7 @@ def query_kg(entity: str, depth: int = 1):
         return {"entity": entity, "relations": kg.query_neighbors(entity, depth=depth)}
 
 @app.post("/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(file: UploadFile = File(...), user_id: str = "user_123"):
     """
     Accepts a PDF or text file, extracts its text, cleans and chunks it,
     and indexes it into the same Chroma vector store used for RAG answers.
@@ -101,6 +101,8 @@ async def upload_document(file: UploadFile = File(...)):
         pass  # nothing to delete yet, that's fine
 
     n_indexed = index_chunks(chunks)
+    
+    memory_store.set_preference(user_id, "last_uploaded_file", file.filename)
 
     return {
         "filename": file.filename,

@@ -666,11 +666,12 @@ fileInput.addEventListener('change', async () => {
   uploadBtn.disabled = true;
   showToast('pending', `Uploading "${file.name}"...`);
 
+  const userId = userIdInput.value.trim() || 'user_123';
   const formData = new FormData();
   formData.append('file', file);
 
   try {
-    const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+    const res = await fetch(`${API_BASE}/upload?user_id=${encodeURIComponent(userId)}`, { method: 'POST', body: formData });
     const data = await res.json();
 
     if (data.error) {
