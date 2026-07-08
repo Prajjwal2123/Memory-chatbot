@@ -86,7 +86,10 @@ async def upload_document(file: UploadFile = File(...)):
         return {"error": "No extractable text found in the file."}
 
     cleaned = clean_text(raw_text)
-    chunks = chunk_documents({file.filename: cleaned})
+    # Larger chunks for uploaded documents (resumes, short docs) so distinct
+    # sections like "Projects" or "Experience" are less likely to get split
+    # across multiple chunks and missed by retrieval.
+    chunks = chunk_documents({file.filename: cleaned}, chunk_size=1500, chunk_overlap=200)
 
     # Remove any previously-indexed chunks from this same filename first,
     # so re-uploading the same file doesn't create duplicate, noisy copies

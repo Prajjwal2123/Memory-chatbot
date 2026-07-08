@@ -49,7 +49,7 @@ class Settings:
     # --- Vector store ---
     CHROMA_PERSIST_DIR: str = os.getenv("CHROMA_PERSIST_DIR", "./data/chroma")
     CHROMA_COLLECTION: str = os.getenv("CHROMA_COLLECTION", "static_knowledge")
-    RAG_TOP_K: int = int(os.getenv("RAG_TOP_K", 4))
+    RAG_TOP_K: int = int(os.getenv("RAG_TOP_K", 6))
 
     # --- Memory ---
     MEMORY_DB_PATH: str = os.getenv("MEMORY_DB_PATH", "./data/memory.db")

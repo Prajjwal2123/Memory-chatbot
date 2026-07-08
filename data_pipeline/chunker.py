@@ -16,10 +16,10 @@ class Chunk:
     chunk_id: str
 
 
-def chunk_documents(documents: dict[str, str]) -> list[Chunk]:
+def chunk_documents(documents: dict[str, str], chunk_size: int = None, chunk_overlap: int = None) -> list[Chunk]:
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=settings.CHUNK_SIZE,
-        chunk_overlap=settings.CHUNK_OVERLAP,
+        chunk_size=chunk_size or settings.CHUNK_SIZE,
+        chunk_overlap=chunk_overlap or settings.CHUNK_OVERLAP,
         separators=["\n\n", "\n", ". ", " ", ""],
     )
 

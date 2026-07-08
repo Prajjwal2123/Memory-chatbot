@@ -65,9 +65,12 @@ def router_node(state: ChatState) -> ChatState:
     """
     llm = get_llm(temperature=0)
     prompt = f"""Classify the user's message into exactly one category:
-- "rag": needs static/background knowledge that would live in a knowledge base
+- "rag": needs static/background knowledge that would live in a knowledge base, OR references an
+  uploaded document/file/resume in any way (e.g. "what does my resume say", "tell me about the
+  document I uploaded", "did you get my file", "what projects are in there") - ALWAYS classify
+  these as "rag", even if phrased casually or conversationally
 - "tool": needs current/real-time/live information (news, prices, weather, "latest", "today")
-- "direct": small talk, or answerable purely from conversation/user memory, no lookup needed
+- "direct": small talk with no reference to documents, files, or lookups needed
 
 Message: "{state['message']}"
 User preferences known: {state.get('preferences')}
