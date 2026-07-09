@@ -140,15 +140,18 @@ def kg_node(state: ChatState) -> ChatState:
 def tool_node(state: ChatState) -> ChatState:
     """
     Tries NewsAPI first (structured, dated, sourced articles) - falls back
-    to general web search if NewsAPI returns nothing (e.g. non-news query
-    like weather, or the free daily quota is used up).
+    to general web search if NewsAPI returns nothing. Also surfaces the
+    actual article URLs as sources, so answers can be verified rather
+    than just trusted.
     """
     news_results = news_search_tool(state["message"])
     if news_results:
-        return {"tool_results": format_news_results(news_results)}
+        sources = [r["url"] for r in news_results if r.get("url")]
+        return {"tool_results": format_news_results(news_results), "sources": sources}
 
     web_results = web_search_tool(state["message"])
-    return {"tool_results": format_search_results(web_results)}
+    sources = [r["url"] for r in web_results if r.get("url")]
+    return {"tool_results": format_search_results(web_results), "sources": sources}
 
 def model_node(state: ChatState) -> ChatState:
     """Final synthesis: combines memory + (rag context or tool results) into an answer."""
