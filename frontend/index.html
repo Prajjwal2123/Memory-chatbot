@@ -8,17 +8,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0A0D18;
-    --bg-vignette: radial-gradient(1100px 700px at 15% -10%, #151B33 0%, transparent 60%),
-                    radial-gradient(900px 600px at 100% 110%, #131730 0%, transparent 55%);
-    --panel: #10142380;
-    --panel-solid: #10142B;
-    --panel-raised: #161B33;
-    --border: #232A47;
-    --border-soft: #1B2038;
+    --bg: #080A12;
+    --panel-solid: #0E1220;
+    --panel-raised: #131829;
+    --border: #232B47;
+    --border-soft: #1A2038;
     --text: #EEF0F8;
     --muted: #8992AD;
-    --faint: #565F7E;
+    --faint: #4E5776;
+    --trace-width: 320px;
 
     --node-memory: #5EE6C4;
     --node-router: #C7CCE0;
@@ -34,26 +32,39 @@
     margin: 0;
     height: 100%;
     background: var(--bg);
-    background-image: var(--bg-vignette);
-    background-attachment: fixed;
     color: var(--text);
     font-family: 'Inter', sans-serif;
     -webkit-font-smoothing: antialiased;
+    overflow: hidden;
   }
 
-  .mono { font-family: 'JetBrains Mono', monospace; }
-  .display { font-family: 'Space Grotesk', sans-serif; }
+  /* Circuit-grid watermark background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(var(--border-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border-soft) 1px, transparent 1px);
+    background-size: 42px 42px;
+    opacity: 0.35;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 0%, transparent 75%);
+  }
 
   #app {
+    position: relative;
+    z-index: 1;
     display: grid;
-    grid-template-columns: 1fr 300px;
+    grid-template-columns: 1fr 6px var(--trace-width);
     grid-template-rows: auto 1fr;
     height: 100vh;
   }
 
-  @media (max-width: 880px) {
+  @media (max-width: 900px) {
     #app { grid-template-columns: 1fr; }
-    #trace-panel { display: none; }
+    #trace-col, #resize-handle { display: none; }
   }
 
   /* ---------- Header ---------- */
@@ -62,37 +73,54 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 30px;
+    padding: 14px 28px;
     border-bottom: 1px solid var(--border-soft);
+    background: linear-gradient(180deg, #0B0E1A 0%, transparent 100%);
   }
 
-  #brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  #logo-mark {
-    width: 30px;
-    height: 30px;
-    flex-shrink: 0;
-  }
+  #brand { display: flex; align-items: center; gap: 13px; }
+  #logo-mark { width: 28px; height: 28px; flex-shrink: 0; }
 
   #header h1 {
     font-family: 'Space Grotesk', sans-serif;
-    font-size: 16px;
+    font-size: 15.5px;
     font-weight: 600;
     letter-spacing: 0.01em;
     margin: 0;
     color: var(--text);
   }
-
   #header .sub {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--faint);
     margin-top: 3px;
     font-weight: 400;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.02em;
   }
+
+  #header-right { display: flex; align-items: center; gap: 20px; }
+
+  #status-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    color: var(--node-memory);
+    text-transform: uppercase;
+    background: color-mix(in srgb, var(--node-memory) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--node-memory) 25%, transparent);
+    padding: 5px 11px 5px 9px;
+    border-radius: 20px;
+  }
+  #status-pill .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--node-memory);
+    box-shadow: 0 0 8px var(--node-memory);
+    animation: livepulse 2s ease-in-out infinite;
+  }
+  @keyframes livepulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
   #user-badge {
     font-family: 'JetBrains Mono', monospace;
@@ -104,7 +132,6 @@
     letter-spacing: 0.02em;
     text-transform: uppercase;
   }
-
   #user-badge input {
     background: var(--panel-raised);
     border: 1px solid var(--border);
@@ -113,40 +140,80 @@
     padding: 7px 11px;
     font-size: 12px;
     font-family: 'JetBrains Mono', monospace;
-    width: 108px;
+    width: 100px;
     text-transform: none;
-    transition: border-color 0.2s ease;
   }
-  #user-badge input:focus {
-    outline: none;
-    border-color: var(--node-rag);
+  #user-badge input:focus { outline: none; border-color: var(--node-rag); }
+
+  /* ---------- Panel header bars (shared style for all widget-like sections) ---------- */
+  .panel-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-soft);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    flex-shrink: 0;
   }
+  .panel-head .indicator { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); flex-shrink: 0; }
 
   /* ---------- Chat column ---------- */
   #chat-col {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    padding: 18px 22px 22px;
   }
+
+  #chat-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: color-mix(in srgb, var(--panel-solid) 55%, transparent);
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #chat-panel .panel-head .indicator { background: var(--node-rag); box-shadow: 0 0 6px var(--node-rag); }
 
   #messages {
     flex: 1;
     overflow-y: auto;
-    padding: 36px 48px 24px;
+    padding: 26px 30px 16px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    max-width: 1100px;
-    width: 100%;
-    margin: 0 auto;
+    gap: 18px;
+    position: relative;
   }
 
+  /* Watermark icon shown behind empty chat state */
+  #chat-watermark {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0.05;
+    z-index: 0;
+  }
+  #chat-watermark svg { width: 340px; height: 340px; }
+
   .msg {
-    max-width: 90%;
+    max-width: 88%;
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 6px;
     animation: rise 0.28s ease;
+    position: relative;
+    z-index: 1;
   }
   @keyframes rise {
     from { opacity: 0; transform: translateY(6px); }
@@ -156,38 +223,36 @@
   .msg.bot { align-self: flex-start; align-items: flex-start; }
 
   .bubble {
-    padding: 15px 19px;
-    border-radius: 14px;
-    line-height: 1.75;
-    font-size: 16px;
+    padding: 13px 17px;
+    border-radius: 12px;
+    line-height: 1.7;
+    font-size: 15px;
     white-space: pre-wrap;
-    letter-spacing: 0.001em;
     color: #F7F8FC;
   }
   .msg.user .bubble {
-    background: linear-gradient(155deg, #232A4C, #1D2342);
-    border: 1px solid #2B3358;
-    border-bottom-right-radius: 4px;
+    background: linear-gradient(155deg, #202749, #1A2040);
+    border: 1px solid #2C3562;
+    border-bottom-right-radius: 3px;
   }
   .msg.bot .bubble {
-    background: #151A30;
-    border: 1px solid #262D4E;
-    border-bottom-left-radius: 4px;
+    background: var(--panel-raised);
+    border: 1px solid var(--border-soft);
+    border-bottom-left-radius: 3px;
   }
 
   .meta {
-    font-size: 10.5px;
+    font-size: 10px;
     color: var(--faint);
-    padding: 0 5px;
+    padding: 0 4px;
     display: flex;
     gap: 8px;
     align-items: center;
     font-family: 'JetBrains Mono', monospace;
   }
-
   .route-chip {
-    font-size: 9.5px;
-    letter-spacing: 0.05em;
+    font-size: 9px;
+    letter-spacing: 0.06em;
     padding: 3px 8px;
     border-radius: 20px;
     text-transform: uppercase;
@@ -197,14 +262,20 @@
   .route-chip.tool   { background: color-mix(in srgb, var(--node-tool) 16%, transparent);   color: var(--node-tool); }
   .route-chip.direct { background: color-mix(in srgb, var(--node-direct) 16%, transparent);  color: var(--node-direct); }
 
-  .sources { font-size: 11px; color: var(--faint); padding: 0 5px; }
-
-  .typing-dots {
-    display: inline-flex;
-    gap: 4px;
-    align-items: center;
-    padding: 4px 0;
+  .suggestions { display: flex; flex-wrap: wrap; gap: 7px; padding: 1px 4px 0; position: relative; z-index: 1; }
+  .suggestion-chip {
+    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 12px;
+    border-radius: 20px;
+    cursor: pointer;
   }
+  .suggestion-chip:hover { border-color: var(--node-rag); color: var(--text); }
+
+  .typing-dots { display: inline-flex; gap: 4px; align-items: center; padding: 3px 0; }
   .typing-dots span {
     width: 5px; height: 5px; border-radius: 50%;
     background: var(--faint);
@@ -214,34 +285,38 @@
   .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
   @keyframes pulse { 0%, 60%, 100% { opacity: 0.25; transform: scale(0.85); } 30% { opacity: 1; transform: scale(1); } }
 
-  /* ---------- Input bar ---------- */
+  /* ---------- Input bar (terminal-prompt style) ---------- */
   #input-bar {
     display: flex;
     align-items: stretch;
     gap: 10px;
-    padding: 16px 48px 32px;
-    flex-wrap: wrap;
-    max-width: 1100px;
-    width: 100%;
-    margin: 0 auto;
-    box-sizing: border-box;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border-soft);
+    background: color-mix(in srgb, var(--panel-solid) 70%, transparent);
+    flex-shrink: 0;
   }
 
   #input-shell {
-    flex: 1 1 320px;
-    min-width: 220px;
+    flex: 1;
     display: flex;
     align-items: center;
-    min-height: 52px;
-    background: var(--panel-raised);
+    gap: 8px;
+    min-height: 48px;
+    background: var(--bg);
     border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 6px 8px 6px 20px;
+    border-radius: 10px;
+    padding: 6px 8px 6px 16px;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
   #input-shell:focus-within {
     border-color: var(--node-rag);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-rag) 14%, transparent);
+  }
+  #input-shell .prompt-symbol {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--node-rag);
+    font-size: 15px;
+    flex-shrink: 0;
   }
 
   #msg-input {
@@ -251,156 +326,110 @@
     border: none;
     color: var(--text);
     font-family: 'Inter', sans-serif;
-    font-size: 15.5px;
+    font-size: 14.5px;
     line-height: 1.5;
-    padding: 12px 0;
-    min-height: 24px;
-    max-height: 140px;
+    padding: 10px 0;
+    min-height: 22px;
+    max-height: 120px;
   }
   #msg-input:focus { outline: none; }
-  #msg-input::placeholder { color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #msg-input::placeholder { color: var(--faint); }
 
-  #send-btn {
+  #send-btn, #upload-btn {
     flex-shrink: 0;
-    height: 52px;
+    height: 48px;
+    border-radius: 9px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    border: none;
+  }
+  #send-btn {
     background: linear-gradient(135deg, var(--node-rag), #7C6BFF);
     color: #060A18;
-    border: none;
-    border-radius: 11px;
-    padding: 0 24px;
-    font-weight: 600;
-    font-size: 13.5px;
-    font-family: 'Space Grotesk', sans-serif;
-    cursor: pointer;
-    transition: transform 0.15s ease, opacity 0.15s ease;
-    white-space: nowrap;
+    padding: 0 22px;
+    transition: transform 0.15s ease;
   }
   #send-btn:hover:not(:disabled) { transform: translateY(-1px); }
   #send-btn:disabled { opacity: 0.35; cursor: default; }
-  #send-btn:focus-visible { outline: 2px solid var(--text); }
 
   #upload-btn {
-    flex-shrink: 0;
-    height: 52px;
     background: var(--panel-raised);
     border: 1px solid var(--border);
     color: var(--muted);
-    border-radius: 11px;
-    padding: 0 18px;
-    font-weight: 500;
-    font-size: 13.5px;
-    font-family: 'Space Grotesk', sans-serif;
-    cursor: pointer;
-    transition: border-color 0.15s ease, color 0.15s ease;
+    padding: 0 16px;
     display: flex;
     align-items: center;
-    gap: 7px;
-    white-space: nowrap;
+    gap: 6px;
+    font-weight: 500;
+    transition: border-color 0.15s ease, color 0.15s ease;
   }
   #upload-btn:hover { border-color: var(--node-memory); color: var(--node-memory); }
   #upload-btn:disabled { opacity: 0.35; cursor: default; }
-  #upload-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
-
-  @media (max-width: 720px) {
-    #input-shell { flex-basis: 100%; }
-    #upload-btn, #send-btn { flex: 1; }
-    #upload-btn span, #send-btn span { display: inline; }
-  }
+  #upload-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
 
   .upload-toast {
-    font-size: 11.5px;
+    font-size: 11px;
     font-family: 'JetBrains Mono', monospace;
-    padding: 8px 14px;
+    padding: 7px 14px;
     border-radius: 8px;
-    margin: 0 26px;
+    margin: 0 20px 10px;
     display: flex;
     align-items: center;
     gap: 8px;
-    animation: rise 0.25s ease;
   }
-  .upload-toast.pending {
-    background: color-mix(in srgb, var(--node-router) 10%, transparent);
-    color: var(--muted);
-    border: 1px solid var(--border-soft);
-  }
-  .upload-toast.success {
-    background: color-mix(in srgb, var(--node-memory) 14%, transparent);
-    color: var(--node-memory);
-    border: 1px solid color-mix(in srgb, var(--node-memory) 30%, transparent);
-  }
-  .upload-toast.error {
-    background: color-mix(in srgb, var(--node-model) 14%, transparent);
-    color: var(--node-model);
-    border: 1px solid color-mix(in srgb, var(--node-model) 30%, transparent);
-  }
+  .upload-toast.pending { background: color-mix(in srgb, var(--node-router) 10%, transparent); color: var(--muted); border: 1px solid var(--border-soft); }
+  .upload-toast.success { background: color-mix(in srgb, var(--node-memory) 14%, transparent); color: var(--node-memory); border: 1px solid color-mix(in srgb, var(--node-memory) 30%, transparent); }
+  .upload-toast.error { background: color-mix(in srgb, var(--node-model) 14%, transparent); color: var(--node-model); border: 1px solid color-mix(in srgb, var(--node-model) 30%, transparent); }
 
-  /* ---------- Trace panel ---------- */
-  #trace-panel {
+  /* ---------- Resize handle ---------- */
+  #resize-handle { grid-row: 2; cursor: col-resize; background: transparent; position: relative; }
+  #resize-handle::after {
+    content: ''; position: absolute; top: 18px; bottom: 18px; left: 2px; width: 2px;
+    background: var(--border-soft); border-radius: 2px; transition: background 0.15s ease;
+  }
+  #resize-handle:hover::after, #resize-handle.dragging::after { background: var(--node-rag); }
+
+  /* ---------- Trace column: three separate widget cards ---------- */
+  #trace-col {
     grid-row: 2;
-    border-left: 1px solid var(--border-soft);
-    padding: 30px 24px;
     display: flex;
     flex-direction: column;
-    gap: 26px;
+    gap: 14px;
+    padding: 18px 18px 18px 0;
     overflow-y: auto;
-    background: linear-gradient(180deg, transparent, #0A0D1840 60%);
   }
 
-  #trace-panel h2 {
-    font-size: 10.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--faint);
-    margin: 0 0 16px;
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 500;
+  .widget-card {
+    background: color-mix(in srgb, var(--panel-solid) 55%, transparent);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
   }
+  .widget-card .panel-head .indicator.pipeline { background: var(--node-router); }
+  .widget-card .panel-head .indicator.sources { background: var(--node-rag); }
+  .widget-card .panel-head .indicator.memory { background: var(--node-memory); }
+
+  .widget-body { padding: 16px 16px 18px; }
 
   .pipeline { display: flex; flex-direction: column; }
-
-  .node {
-    display: flex;
-    align-items: flex-start;
-    gap: 13px;
-    position: relative;
-    padding-bottom: 24px;
-  }
+  .node { display: flex; align-items: flex-start; gap: 11px; position: relative; padding-bottom: 20px; }
   .node:last-child { padding-bottom: 0; }
-
-  .node .stem { width: 11px; display: flex; flex-direction: column; align-items: center; }
+  .node .stem { width: 10px; display: flex; flex-direction: column; align-items: center; }
   .node .dot {
-    width: 11px; height: 11px; border-radius: 50%;
+    width: 10px; height: 10px; border-radius: 50%;
     background: var(--border);
     transition: background 0.4s ease, box-shadow 0.4s ease;
     flex-shrink: 0;
     margin-top: 1px;
   }
-  .node .line {
-    width: 1.5px; flex: 1; min-height: 20px;
-    background: var(--border-soft);
-    margin-top: 3px;
-    transition: background 0.4s ease;
-  }
+  .node .line { width: 1.5px; flex: 1; min-height: 16px; background: var(--border-soft); margin-top: 3px; transition: background 0.4s ease; }
   .node:last-child .line { display: none; }
-
-  .node .label { padding-top: -1px; }
-  .node .label .name {
-    display: block;
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--faint);
-    transition: color 0.4s ease;
-  }
-  .node .label .desc {
-    display: block;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10.5px;
-    color: var(--faint);
-    margin-top: 2px;
-    opacity: 0.7;
-  }
-
+  .node .label .name { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 12.5px; font-weight: 500; color: var(--faint); transition: color 0.4s ease; }
+  .node .label .desc { display: block; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--faint); margin-top: 2px; opacity: 0.7; }
   .node.active .dot {
     background: var(--node-color, var(--node-rag));
     box-shadow: 0 0 0 5px color-mix(in srgb, var(--node-color, var(--node-rag)) 18%, transparent),
@@ -410,53 +439,15 @@
   .node.active .label .name { color: var(--text); }
   .node.active .label .desc { color: var(--node-color, var(--node-rag)); opacity: 1; }
 
-  #memory-box, #sources-box { border-top: 1px solid var(--border-soft); padding-top: 20px; }
-
-  .kv {
-    display: flex; justify-content: space-between;
-    font-size: 12px; padding: 6px 0;
-    color: var(--muted);
-    border-bottom: 1px dashed var(--border-soft);
-  }
-  .kv span:last-child {
-    color: var(--text); font-family: 'JetBrains Mono', monospace;
-    font-size: 11.5px; text-align: right; max-width: 58%;
-  }
-
+  .kv { display: flex; justify-content: space-between; font-size: 11.5px; padding: 6px 0; color: var(--muted); border-bottom: 1px dashed var(--border-soft); }
+  .kv:last-child { border-bottom: none; }
+  .kv span:last-child { color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 11px; text-align: right; max-width: 58%; }
   .empty-hint { font-size: 11.5px; color: var(--faint); font-style: italic; line-height: 1.5; }
+  .sources-list a { display: block; font-size: 10.5px; color: var(--node-rag); text-decoration: none; padding: 5px 0; word-break: break-all; font-family: 'JetBrains Mono', monospace; }
+  .sources-list a:hover { text-decoration: underline; }
 
-  #sources-box a {
-    display: block; font-size: 11.5px; color: var(--node-rag);
-    text-decoration: none; padding: 5px 0; word-break: break-all;
-    font-family: 'JetBrains Mono', monospace;
-  }
-  #sources-box a:hover { text-decoration: underline; }
-
-  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar { width: 7px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-.suggestions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 2px 5px 0;
-  }
-  .suggestion-chip {
-    font-size: 12.5px;
-    font-family: 'Inter', sans-serif;
-    background: var(--panel-raised);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    padding: 7px 13px;
-    border-radius: 20px;
-    cursor: pointer;
-    transition: border-color 0.15s ease, color 0.15s ease;
-  }
-  .suggestion-chip:hover {
-    border-color: var(--node-rag);
-    color: var(--text);
-  }
-
-
 </style>
 </head>
 <body>
@@ -472,48 +463,67 @@
       </svg>
       <div>
         <h1>Memory-Augmented Chatbot</h1>
-        <div class="sub">RAG &nbsp;·&nbsp; Knowledge Graph &nbsp;·&nbsp; LangGraph routing &nbsp;·&nbsp; Long-term memory</div>
+        <div class="sub">RAG · KNOWLEDGE GRAPH · LANGGRAPH · LONG-TERM MEMORY</div>
       </div>
     </div>
-    <div id="user-badge">
-      user_id <input id="user-id-input" value="user_123" />
+    <div id="header-right">
+      <div id="status-pill"><span class="dot"></span>System Online</div>
+      <div id="user-badge">
+        user_id <input id="user-id-input" value="user_123" />
+      </div>
     </div>
   </div>
 
   <div id="chat-col">
-    <div id="messages"></div>
-    <div id="upload-toast-container"></div>
-    <div id="input-bar">
-      <div id="input-shell">
-        <textarea id="msg-input" placeholder="Ask a question, or upload a document..." rows="1"></textarea>
+    <div id="chat-panel">
+      <div class="panel-head"><span class="indicator"></span>Conversation</div>
+      <div id="messages">
+        <div id="chat-watermark">
+          <svg viewBox="0 0 200 200" fill="none">
+            <circle cx="40" cy="40" r="7" fill="#5EE6C4"/>
+            <circle cx="160" cy="40" r="7" fill="#5B8CFF"/>
+            <circle cx="100" cy="160" r="7" fill="#FF6E8E"/>
+            <circle cx="100" cy="90" r="7" fill="#C7CCE0"/>
+            <path d="M45 45L95 88M155 45L105 88M100 97L100 153" stroke="#232B47" stroke-width="2.5"/>
+          </svg>
+        </div>
       </div>
-      <input type="file" id="file-input" accept=".pdf,.txt,.md" style="display:none" />
-      <button id="upload-btn" title="Upload a PDF or text file to add to the knowledge base">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        Upload
-      </button>
-      <button id="send-btn">Send</button>
+      <div id="upload-toast-container"></div>
+      <div id="input-bar">
+        <div id="input-shell">
+          <span class="prompt-symbol">›</span>
+          <textarea id="msg-input" placeholder="Ask a question, or upload a document..." rows="1"></textarea>
+        </div>
+        <input type="file" id="file-input" accept=".pdf,.txt,.md" style="display:none" />
+        <button id="upload-btn" title="Upload a PDF or text file">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Upload
+        </button>
+        <button id="send-btn">Send</button>
+      </div>
     </div>
   </div>
 
-  <div id="trace-panel">
-    <div>
-      <h2>Pipeline trace</h2>
-      <div class="pipeline" id="pipeline"></div>
+  <div id="resize-handle"></div>
+
+  <div id="trace-col">
+    <div class="widget-card">
+      <div class="panel-head"><span class="indicator pipeline"></span>Pipeline Trace</div>
+      <div class="widget-body"><div class="pipeline" id="pipeline"></div></div>
     </div>
 
-    <div id="sources-box">
-      <h2>Sources used</h2>
-      <div id="sources-list" class="empty-hint">No sources yet — ask a knowledge question.</div>
+    <div class="widget-card">
+      <div class="panel-head"><span class="indicator sources"></span>Sources Used</div>
+      <div class="widget-body"><div id="sources-list" class="empty-hint sources-list">No sources yet — ask a knowledge question.</div></div>
     </div>
 
-    <div id="memory-box">
-      <h2>Remembered about this user</h2>
-      <div id="memory-list" class="empty-hint">Nothing stored yet.</div>
+    <div class="widget-card">
+      <div class="panel-head"><span class="indicator memory"></span>User Memory</div>
+      <div class="widget-body"><div id="memory-list" class="empty-hint">Nothing stored yet.</div></div>
     </div>
   </div>
 </div>
@@ -531,6 +541,45 @@ const memoryListEl = document.getElementById('memory-list');
 const uploadBtn = document.getElementById('upload-btn');
 const fileInput = document.getElementById('file-input');
 const toastContainer = document.getElementById('upload-toast-container');
+const resizeHandle = document.getElementById('resize-handle');
+const chatWatermark = document.getElementById('chat-watermark');
+
+// ---------- Resizable trace column ----------
+(function setupResize() {
+  const MIN_WIDTH = 260;
+  const MAX_WIDTH = 560;
+  const saved = parseInt(localStorage.getItem('traceWidth'), 10);
+  if (saved && saved >= MIN_WIDTH && saved <= MAX_WIDTH) {
+    document.documentElement.style.setProperty('--trace-width', saved + 'px');
+  } else {
+    localStorage.removeItem('traceWidth');
+  }
+
+  let dragging = false;
+
+  resizeHandle.addEventListener('mousedown', (e) => {
+    dragging = true;
+    resizeHandle.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    let newWidth = window.innerWidth - e.clientX;
+    newWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newWidth));
+    document.documentElement.style.setProperty('--trace-width', newWidth + 'px');
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    resizeHandle.classList.remove('dragging');
+    document.body.style.userSelect = '';
+    const current = getComputedStyle(document.documentElement).getPropertyValue('--trace-width').trim();
+    localStorage.setItem('traceWidth', parseInt(current, 10));
+  });
+})();
 
 const NODES = [
   { id: 'memory_node', name: 'Memory node', desc: 'load user context', color: 'var(--node-memory)' },
@@ -541,7 +590,7 @@ const NODES = [
 
 const ROUTE_INFO = {
   rag:    { name: 'RAG + KG node', desc: 'static knowledge + graph facts', color: 'var(--node-rag)' },
-  tool:   { name: 'Tool node',     desc: 'live web search',               color: 'var(--node-tool)' },
+  tool:   { name: 'Tool node',     desc: 'live web / news search',        color: 'var(--node-tool)' },
   direct: { name: 'Direct',        desc: 'skip retrieval',                color: 'var(--node-direct)' },
 };
 
@@ -562,7 +611,19 @@ function renderPipeline(activeRoute) {
 }
 renderPipeline(null);
 
+function scrollToMessageTop(el) {
+  requestAnimationFrame(() => {
+    const offset = el.offsetTop - messagesEl.offsetTop - 12;
+    messagesEl.scrollTo({ top: offset, behavior: 'smooth' });
+  });
+}
+
+function hideWatermark() {
+  if (chatWatermark) chatWatermark.style.display = 'none';
+}
+
 function addMessage(role, text, meta) {
+  hideWatermark();
   const wrap = document.createElement('div');
   wrap.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
 
@@ -600,21 +661,22 @@ function addMessage(role, text, meta) {
 }
 
 function addTypingBubble() {
+  hideWatermark();
   const wrap = document.createElement('div');
   wrap.className = 'msg bot';
   wrap.innerHTML = `<div class="bubble"><span class="typing-dots"><span></span><span></span><span></span></span></div>`;
   messagesEl.appendChild(wrap);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+  scrollToMessageTop(wrap);
   return wrap;
 }
 
 function renderSources(sources) {
   if (!sources || sources.length === 0) {
-    sourcesListEl.className = 'empty-hint';
+    sourcesListEl.className = 'empty-hint sources-list';
     sourcesListEl.textContent = 'No sources for this answer.';
     return;
   }
-  sourcesListEl.className = '';
+  sourcesListEl.className = 'sources-list';
   sourcesListEl.innerHTML = sources.map(s => `<a href="${s}" target="_blank" rel="noopener">${s}</a>`).join('');
 }
 
@@ -649,11 +711,16 @@ async function sendMessage() {
   renderPipeline('rag');
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
     const res = await fetch(`${API_BASE}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: userId, message: text }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     const data = await res.json();
 
     typingEl.remove();
@@ -663,7 +730,11 @@ async function sendMessage() {
     refreshMemory();
   } catch (err) {
     typingEl.remove();
-    addMessage('bot', 'Error reaching the API. Is uvicorn still running on :8000?');
+    if (err.name === 'AbortError') {
+      addMessage('bot', 'This is taking longer than expected (60s+). The server may be waking up from sleep, or busy - try again in a moment.');
+    } else {
+      addMessage('bot', 'Error reaching the API. Is uvicorn still running on :8000?');
+    }
     renderPipeline(null);
   } finally {
     sendBtn.disabled = false;
@@ -680,7 +751,7 @@ inputEl.addEventListener('keydown', (e) => {
 });
 inputEl.addEventListener('input', () => {
   inputEl.style.height = 'auto';
-  inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + 'px';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
 });
 userIdInput.addEventListener('change', refreshMemory);
 
@@ -726,10 +797,7 @@ fileInput.addEventListener('change', async () => {
   }
 });
 
-addMessage('bot', "Hi — I'm grounded in a scraped Wikipedia knowledge base (RAG), a Neo4j knowledge graph, and I remember what you tell me across turns. Ask me something, or upload your own PDF/text file.");
 refreshMemory();
-
-
 </script>
 
 </body>
