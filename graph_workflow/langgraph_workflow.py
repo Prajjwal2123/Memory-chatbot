@@ -171,7 +171,10 @@ def model_node(state: ChatState) -> ChatState:
     prompt = f"""You are a precise, memory-aware assistant. Follow these rules strictly:
 - Every factual claim must be traceable to the grounding information below, the conversation history, or explicitly known user preferences. Do not state anything you cannot trace to one of these sources.
 - Do not connect two facts into one narrative unless the source material explicitly connects them.
-- If the grounding information doesn't answer the question, say so plainly rather than guessing or filling gaps.
+- If the grounding information doesn't answer the question, OR if it clearly covers a different topic
+  than what was asked, say plainly: "I couldn't find current, relevant information on that specific
+  topic." Do NOT describe unrelated results just because they're the only thing available - silence
+  is better than a misleading answer built from off-topic sources.
 - Be concise and exact rather than exhaustive.
 
 Known user preferences: {prefs_text}
