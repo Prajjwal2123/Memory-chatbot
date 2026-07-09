@@ -29,7 +29,7 @@ from config import settings
 from models import get_llm
 from memory.memory_store import MemoryStore, extract_and_store_preferences
 from rag.rag_pipeline import retrieve_context
-from tools.dynamic_tools import web_search_tool, format_search_results
+from tools.dynamic_tools import web_search_tool, format_search_results, news_search_tool, format_news_results
 from knowledge_graph.kg_builder import KnowledgeGraph
 
 memory_store = MemoryStore()
@@ -138,9 +138,17 @@ def kg_node(state: ChatState) -> ChatState:
 
 
 def tool_node(state: ChatState) -> ChatState:
-    results = web_search_tool(state["message"])
-    return {**state, "tool_results": format_search_results(results)}
+    """
+    Tries NewsAPI first (structured, dated, sourced articles) - falls back
+    to general web search if NewsAPI returns nothing (e.g. non-news query
+    like weather, or the free daily quota is used up).
+    """
+    news_results = news_search_tool(state["message"])
+    if news_results:
+        return {"tool_results": format_news_results(news_results)}
 
+    web_results = web_search_tool(state["message"])
+    return {"tool_results": format_search_results(web_results)}
 
 def model_node(state: ChatState) -> ChatState:
     """Final synthesis: combines memory + (rag context or tool results) into an answer."""

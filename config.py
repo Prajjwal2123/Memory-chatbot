@@ -29,7 +29,7 @@ class Settings:
     # --- Groq (used when LLM_BACKEND=groq) ---
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
-
+    NEWS_API_KEY: str = os.getenv("NEWS_API_KEY", "")
     # --- Neo4j ---
     NEO4J_URI: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     NEO4J_USER: str = os.getenv("NEO4J_USER", "neo4j")
