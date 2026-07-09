@@ -434,6 +434,29 @@
 
   ::-webkit-scrollbar { width: 8px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 2px 5px 0;
+  }
+  .suggestion-chip {
+    font-size: 12.5px;
+    font-family: 'Inter', sans-serif;
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 7px 13px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  .suggestion-chip:hover {
+    border-color: var(--node-rag);
+    color: var(--text);
+  }
+
+
 </style>
 </head>
 <body>
@@ -555,8 +578,24 @@ function addMessage(role, text, meta) {
     wrap.appendChild(metaRow);
   }
 
+  if (meta && meta.suggestions && meta.suggestions.length > 0) {
+    const suggWrap = document.createElement('div');
+    suggWrap.className = 'suggestions';
+    meta.suggestions.forEach(q => {
+      const chip = document.createElement('button');
+      chip.className = 'suggestion-chip';
+      chip.textContent = q;
+      chip.addEventListener('click', () => {
+        inputEl.value = q;
+        sendMessage();
+      });
+      suggWrap.appendChild(chip);
+    });
+    wrap.appendChild(suggWrap);
+  }
+
   messagesEl.appendChild(wrap);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+  scrollToMessageTop(wrap);
   return wrap;
 }
 
@@ -618,7 +657,7 @@ async function sendMessage() {
     const data = await res.json();
 
     typingEl.remove();
-    addMessage('bot', data.answer || '(no answer returned)', { route: data.route });
+    addMessage('bot', data.answer || '(no answer returned)', { route: data.route, suggestions: data.suggestions });
     renderPipeline(data.route);
     renderSources(data.sources);
     refreshMemory();
@@ -689,6 +728,8 @@ fileInput.addEventListener('change', async () => {
 
 addMessage('bot', "Hi — I'm grounded in a scraped Wikipedia knowledge base (RAG), a Neo4j knowledge graph, and I remember what you tell me across turns. Ask me something, or upload your own PDF/text file.");
 refreshMemory();
+
+
 </script>
 
 </body>

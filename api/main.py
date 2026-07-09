@@ -40,6 +40,7 @@ class ChatResponse(BaseModel):
     answer: str
     route: str
     sources: list[str] = []
+    suggestions: list[str] = []
 
 
 @app.get("/health")
@@ -54,6 +55,7 @@ def chat(req: ChatRequest):
         answer=result.get("answer", ""),
         route=result.get("route", ""),
         sources=result.get("sources", []),
+        suggestions=result.get("suggestions", []),
     )
 
 

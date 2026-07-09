@@ -46,6 +46,7 @@ class ChatState(TypedDict, total=False):
     tool_results: str
     graph_facts: str
     answer: str
+    suggestions: list[str]
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +238,34 @@ Respond with ONLY one word: SUPPORTED or UNSUPPORTED."""
 
     return {"answer": current_answer}
 
+def suggestions_node(state: ChatState) -> ChatState:
+    """
+    Generates 3 short, related follow-up questions based on the answer just
+    given - e.g. after answering about the FIFA World Cup, suggest asking
+    about controversies, predictions, or notable statements. Skipped for
+    "direct" (small talk) answers where follow-ups aren't meaningful.
+    """
+    if state.get("route") not in ("rag", "tool"):
+        return {"suggestions": []}
+
+    answer = state.get("answer", "")
+    if not answer.strip():
+        return {"suggestions": []}
+
+    llm = get_llm(temperature=0.3)
+    prompt = f"""Based on this question and answer, suggest exactly 3 short,
+specific follow-up questions someone might naturally want to ask next -
+things like related controversies, opinions/predictions, notable people's
+statements, or a deeper angle on the same topic. Keep each under 10 words.
+
+Original question: {state['message']}
+Answer given: {answer}
+
+Return ONLY the 3 questions, one per line, no numbering, no extra text."""
+
+    result = llm.invoke(prompt).content.strip()
+    suggestions = [line.strip("-• ").strip() for line in result.split("\n") if line.strip()]
+    return {"suggestions": suggestions[:3]}
 
 # ---------------------------------------------------------------------------
 # Routing function (conditional edge)
@@ -290,8 +319,10 @@ def build_graph():
     graph.add_edge("rag_node", "model_node")
     graph.add_edge("kg_node", "model_node")
     graph.add_edge("tool_node", "model_node")
+    graph.add_node("suggestions_node", suggestions_node)
     graph.add_edge("model_node", "self_check_node")
-    graph.add_edge("self_check_node", END)
+    graph.add_edge("self_check_node", "suggestions_node")
+    graph.add_edge("suggestions_node", END)
 
     return graph.compile()
 
