@@ -15,10 +15,13 @@ Graph shape:
       router_node             (LLM decides: rag | tool | direct)
        /    |    \
    rag_node tool_node  (direct -> skip both)
+   kg_node  /
        \    |    /
       model_node             (final answer synthesis, writes memory)
           |
       self_check_node        (flags unsupported/hallucinated answers)
+          |
+      suggestions_node       (related follow-up questions)
           |
          END
 """
@@ -154,6 +157,7 @@ def tool_node(state: ChatState) -> ChatState:
     sources = [r["url"] for r in web_results if r.get("url")]
     return {"tool_results": format_search_results(web_results), "sources": sources}
 
+
 def model_node(state: ChatState) -> ChatState:
     """Final synthesis: combines memory + (rag context or tool results) into an answer."""
     llm = get_llm(temperature=0.1)
@@ -169,14 +173,20 @@ def model_node(state: ChatState) -> ChatState:
     elif state.get("route") == "tool":
         grounding = f"Live search results:\n{state.get('tool_results', '')}"
 
-    prompt = f"""You are a precise, memory-aware assistant. Follow these rules strictly:
+    if state.get("route") in ("rag", "tool"):
+        strict_rules = """Follow these rules strictly:
 - Every factual claim must be traceable to the grounding information below, the conversation history, or explicitly known user preferences. Do not state anything you cannot trace to one of these sources.
 - Do not connect two facts into one narrative unless the source material explicitly connects them.
-- If the grounding information doesn't answer the question, OR if it clearly covers a different topic
-  than what was asked, say plainly: "I couldn't find current, relevant information on that specific
-  topic." Do NOT describe unrelated results just because they're the only thing available - silence
-  is better than a misleading answer built from off-topic sources.
-- Be concise and exact rather than exhaustive.
+- If the grounding information doesn't answer the question, OR if it clearly covers a different topic than what was asked, say plainly: "I couldn't find current, relevant information on that specific topic." Do NOT describe unrelated results just because they're the only thing available.
+- Be concise and exact rather than exhaustive."""
+    else:
+        strict_rules = """This is casual conversation - respond naturally and warmly, like a normal chat.
+You don't need any external grounding to reply to greetings or small talk. Use the
+conversation history and known preferences to personalize your reply if relevant."""
+
+    prompt = f"""You are a precise, memory-aware assistant.
+
+{strict_rules}
 
 Known user preferences: {prefs_text}
 Recent conversation:
@@ -186,7 +196,7 @@ Recent conversation:
 
 User: {state['message']}
 
-Respond using only the rules above."""
+Respond appropriately for this type of message."""
 
     answer = llm.invoke(prompt).content
 
@@ -238,12 +248,12 @@ Respond with ONLY one word: SUPPORTED or UNSUPPORTED."""
 
     return {"answer": current_answer}
 
+
 def suggestions_node(state: ChatState) -> ChatState:
     """
     Generates 3 short, related follow-up questions based on the answer just
-    given - e.g. after answering about the FIFA World Cup, suggest asking
-    about controversies, predictions, or notable statements. Skipped for
-    "direct" (small talk) answers where follow-ups aren't meaningful.
+    given. Skipped for "direct" (small talk) answers. Fails gracefully
+    (returns no suggestions) rather than risking a hung/failed request.
     """
     if state.get("route") not in ("rag", "tool"):
         return {"suggestions": []}
@@ -252,8 +262,9 @@ def suggestions_node(state: ChatState) -> ChatState:
     if not answer.strip():
         return {"suggestions": []}
 
-    llm = get_llm(temperature=0.3)
-    prompt = f"""Based on this question and answer, suggest exactly 3 short,
+    try:
+        llm = get_llm(temperature=0.3)
+        prompt = f"""Based on this question and answer, suggest exactly 3 short,
 specific follow-up questions someone might naturally want to ask next -
 things like related controversies, opinions/predictions, notable people's
 statements, or a deeper angle on the same topic. Keep each under 10 words.
@@ -263,9 +274,13 @@ Answer given: {answer}
 
 Return ONLY the 3 questions, one per line, no numbering, no extra text."""
 
-    result = llm.invoke(prompt).content.strip()
-    suggestions = [line.strip("-• ").strip() for line in result.split("\n") if line.strip()]
-    return {"suggestions": suggestions[:3]}
+        result = llm.invoke(prompt).content.strip()
+        suggestions = [line.strip("-• ").strip() for line in result.split("\n") if line.strip()]
+        return {"suggestions": suggestions[:3]}
+    except Exception as e:
+        print(f"[suggestions_node] Failed, skipping suggestions: {e}")
+        return {"suggestions": []}
+
 
 # ---------------------------------------------------------------------------
 # Routing function (conditional edge)
@@ -299,6 +314,7 @@ def build_graph():
     graph.add_node("tool_node", tool_node)
     graph.add_node("model_node", model_node)
     graph.add_node("self_check_node", self_check_node)
+    graph.add_node("suggestions_node", suggestions_node)
 
     graph.add_edge(START, "memory_node")
     graph.add_edge("memory_node", "router_node")
@@ -319,7 +335,6 @@ def build_graph():
     graph.add_edge("rag_node", "model_node")
     graph.add_edge("kg_node", "model_node")
     graph.add_edge("tool_node", "model_node")
-    graph.add_node("suggestions_node", suggestions_node)
     graph.add_edge("model_node", "self_check_node")
     graph.add_edge("self_check_node", "suggestions_node")
     graph.add_edge("suggestions_node", END)
