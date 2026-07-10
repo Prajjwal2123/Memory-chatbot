@@ -1,162 +1,139 @@
-# Memory-Augmented Chatbot with Knowledge Graph and Hybrid RAG
-🔗 **Live demo**: https://memory-chatbot-xp26.onrender.com
-End-to-end implementation of the project brief:
-- Static Knowledge Layer (RAG over scraped web data, Chroma vector store)
-- Knowledge Graph Layer (entity/relationship extraction → Neo4j)
-- Dynamic Intelligence Layer (LangGraph router: RAG node / Tool node / Memory node / Model node)
-- Long-term memory (per-user preferences + history, SQLite by default, MongoDB-ready)
-- Evaluation framework (context relevance, answer correctness, faithfulness via RAGAS)
-- FastAPI server exposing the chatbot as an API
+# Memory-Augmented Chatbot with Knowledge Graph Fusion
+
+🔗 **Live demo:** https://memory-chatbot-xp26.onrender.com/
+> Hosted on Render's free tier — the app sleeps after ~15 minutes of inactivity and can take up to ~50 seconds to wake on the first request.
+
+A conversational AI system that routes each query through the right retrieval strategy — static knowledge (RAG), structured relationships (knowledge graph), or live web/news search — fuses the results, and grounds every answer with visible sources. Built to address the core limitations of plain RAG chatbots: no memory across sessions, no structured reasoning, and no access to real-time information.
 
 ---
 
-## 0. Prerequisites
+## What it does
 
-- Python 3.10+
-- VS Code with the **Python** extension installed
-- A Neo4j instance (free options: [Neo4j Desktop](https://neo4j.com/download/) or [Neo4j AuraDB Free](https://neo4j.com/cloud/aura-free/))
-- **[Ollama](https://ollama.com/download)** installed — this project runs entirely on free local models by default (no OpenAI key or billing needed). If you'd rather use OpenAI, set `USE_LOCAL_MODELS=false` in `.env` and supply an `OPENAI_API_KEY`.
-
-### Setting up Ollama (one-time)
-
-1. Install Ollama from https://ollama.com/download
-2. Pull the model used by default:
-   ```bash
-   ollama pull llama3.1
-   ```
-   (This downloads a few GB — grab a coffee. If your machine is low on RAM, use a smaller model like `ollama pull llama3.2:3b` and set `LOCAL_LLM_MODEL=llama3.2:3b` in `.env` instead.)
-3. Ollama runs a local server automatically after install. Verify it's up:
-   ```bash
-   ollama list
-   ```
-   You should see `llama3.1` listed. Leave Ollama running in the background — the app talks to it over `http://localhost:11434`.
-
-Embeddings use `sentence-transformers/all-MiniLM-L6-v2` from HuggingFace, which downloads automatically the first time you run the pipeline (also free, runs on CPU).
+- **Hybrid retrieval, not just RAG.** For knowledge questions, a vector store (ChromaDB) and a Neo4j knowledge graph are queried **in parallel** and fused into one grounded answer — not two competing systems, one combined context.
+- **Live information when it matters.** Questions about current events route to a news/web search tool instead of the static knowledge base, with real article URLs shown as sources.
+- **Long-term memory.** Preferences and conversation history persist per user across sessions, and inform future answers.
+- **Document upload.** Users can upload their own PDF/text files, which get chunked, embedded, and become queryable alongside the scraped knowledge base — including full-file retrieval for "list everything in my document" style questions that plain similarity search tends to miss.
+- **A visible safety net.** A hallucination self-check step reviews each grounded answer against its retrieved sources and flags it if the model appears to have stated something unsupported.
+- **Related-question suggestions.** After a knowledge or news answer, the system suggests relevant follow-up questions.
+- **A dashboard-style UI**, not a generic chat widget — a live pipeline trace showing exactly which nodes fired for each message, plus dedicated panels for sources and suggestions.
 
 ---
 
-## 1. Open the project in VS Code
+## Architecture
 
-```bash
-cd memory_chatbot
-code .
+```
+                              START
+                                │
+                          memory_node          (loads user preferences + history)
+                                │
+                          router_node           (LLM classifies: rag / tool / direct)
+                     ┌──────────┼──────────┐
+                 rag_node    tool_node    (direct → skip both)
+                 kg_node    (news → web
+              (parallel,     fallback)
+               fan-in)
+                     └──────────┼──────────┘
+                                │
+                          model_node            (synthesizes grounded answer)
+                                │
+                        self_check_node          (flags unsupported claims)
+                                │
+                       suggestions_node          (related follow-up questions)
+                                │
+                               END
 ```
 
-Select/create a Python interpreter: `Ctrl+Shift+P` → "Python: Select Interpreter".
+Built with **LangGraph**, where `rag_node` and `kg_node` run as true parallel branches and fan into `model_node` once both complete.
 
-## 2. Create a virtual environment
+---
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Orchestration | LangGraph, LangChain |
+| LLM | Groq (`llama-3.1-8b-instant`) |
+| Embeddings | FastEmbed (ONNX-based — chosen over `sentence-transformers`/PyTorch specifically to keep memory usage low enough for free-tier hosting) |
+| Vector store | ChromaDB |
+| Knowledge graph | Neo4j AuraDB |
+| Web scraping | BeautifulSoup |
+| Live search | NewsAPI (news queries), DuckDuckGo (general fallback) |
+| Backend | FastAPI |
+| Memory store | SQLite |
+| Frontend | Vanilla HTML/CSS/JS (no framework) |
+| Deployment | Render |
+
+---
+
+## Running it locally
 
 ```bash
+git clone <this-repo-url>
+cd memory_chatbot_local_final
 python -m venv venv
-# Windows
-venv\Scripts\activate
-# macOS/Linux
-source venv/bin/activate
-```
+venv\Scripts\Activate.ps1        # Windows
+# source venv/bin/activate       # macOS/Linux
 
-## 3. Install dependencies
-
-```bash
 pip install -r requirements.txt
+cp .env.example .env             # then fill in your API keys (see below)
+
+python scripts/run_pipeline.py   # scrapes seed URLs, builds the vector store + knowledge graph
+python -m uvicorn api.main:app --reload --port 8000
 ```
 
-## 4. Configure environment variables
+Open `http://localhost:8000/`.
 
-Copy `.env.example` to `.env` and fill in your Neo4j credentials (models are already configured to run locally via Ollama, no key needed):
-
-```bash
-cp .env.example .env
-```
+### Required environment variables (`.env`)
 
 ```
-USE_LOCAL_MODELS=true
-NEO4J_URI=neo4j+s://xxxx.databases.neo4j.io
+LLM_BACKEND=groq                 # or "local" to use Ollama instead
+GROQ_API_KEY=your-key
+GROQ_MODEL=llama-3.1-8b-instant
+
+NEO4J_URI=neo4j+s://your-instance.databases.neo4j.io
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=your-password
-SEED_URLS=https://en.wikipedia.org/wiki/Retrieval-augmented_generation,https://en.wikipedia.org/wiki/Knowledge_graph
+
+NEWS_API_KEY=your-key            # free tier: newsapi.org (100 requests/day)
+
+SEED_URLS=https://en.wikipedia.org/wiki/...   # comma-separated
 ```
-
-## 5. Run the pipeline end-to-end (Steps 1–3 of the methodology)
-
-This scrapes the seed URLs, cleans + chunks the text, builds embeddings into Chroma,
-and extracts entities/relationships into Neo4j.
-
-```bash
-python scripts/run_pipeline.py
-```
-
-## 6. Start the chatbot API (Steps 4–6: RAG + LangGraph routing + tools)
-
-```bash
-uvicorn api.main:app --reload --port 8000
-```
-
-Test it:
-
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": "user_123", "message": "What is a knowledge graph?"}'
-```
-
-Interactive docs: http://localhost:8000/docs
-
-## 7. Run evaluation (Step 7)
-
-```bash
-python evaluation/evaluate.py
-```
-
-This prints faithfulness, answer-correctness, and context-relevance scores for a
-small held-out set of test questions defined in `evaluation/test_questions.json`.
 
 ---
 
-## Project layout
+## Honest evaluation notes
 
-```
-memory_chatbot/
-├── config.py                  # central settings (env vars, model names, paths)
-├── data_pipeline/
-│   ├── scraper.py             # BeautifulSoup web scraper
-│   ├── cleaner.py             # text cleaning
-│   └── chunker.py             # text chunking
-├── vectorstore/
-│   └── embed_store.py         # embeddings + Chroma vector store
-├── knowledge_graph/
-│   ├── entity_extractor.py    # LLM-based entity/relation extraction
-│   └── kg_builder.py          # Neo4j ingestion + query helpers
-├── memory/
-│   └── memory_store.py        # long-term user memory (SQLite, Mongo-ready)
-├── tools/
-│   └── dynamic_tools.py       # live/dynamic data tools (web search, weather, etc.)
-├── rag/
-│   └── rag_pipeline.py        # retrieval + answer generation
-├── graph_workflow/
-│   └── langgraph_workflow.py  # LangGraph: model/memory/RAG/tool nodes + router
-├── evaluation/
-│   ├── evaluate.py            # RAGAS-based evaluation
-│   └── test_questions.json    # held-out eval set
-├── api/
-│   └── main.py                # FastAPI app exposing /chat
-└── scripts/
-    └── run_pipeline.py        # orchestrates steps 1-3
-```
+Ran against RAGAS on the included test set:
 
-## How each requirement maps to code
-
-| Requirement (from problem statement) | Where it's implemented |
+| Metric | Result |
 |---|---|
-| Lack of long-term memory | `memory/memory_store.py` |
-| Limited reasoning over structured data | `knowledge_graph/` (Neo4j) |
-| Static + real-time data | `rag/` (static) + `tools/` (real-time) |
-| RAG for static knowledge | `vectorstore/embed_store.py`, `rag/rag_pipeline.py` |
-| Knowledge Graph for structured reasoning | `knowledge_graph/kg_builder.py` |
-| Long-term memory for personalization | `memory/memory_store.py` |
-| Tool-based dynamic retrieval (LangGraph) | `graph_workflow/langgraph_workflow.py`, `tools/dynamic_tools.py` |
-| Web scraping → cleaning → chunking | `data_pipeline/` |
-| Embedding generation + vector storage | `vectorstore/embed_store.py` |
-| Entity/relationship extraction | `knowledge_graph/entity_extractor.py` |
-| LangGraph nodes: Model/Memory/RAG/Tool + routing | `graph_workflow/langgraph_workflow.py` |
-| Evaluation: relevance, correctness, faithfulness | `evaluation/evaluate.py` |
-| FastAPI service | `api/main.py` |
+| Faithfulness | 1.00 |
+| Context precision | 1.00 |
+| Answer correctness | Not obtained — Groq's free-tier token-per-minute limit was too low for this particular metric's larger prompt payloads |
+
+**What this does and doesn't show:** faithfulness and context precision confirm the RAG pipeline retrieves relevant context and stays grounded in it. It does **not** constitute a measured accuracy percentage across a broad question set — that would require the `answer_correctness` run, which hit a real infrastructure limit rather than completing. In production, this would be resolved with a paid LLM tier or local inference.
+
+### Known limitations
+- **Free-tier hosting constraints.** Render's free tier sleeps on inactivity and caps memory at 512MB, which shaped some architecture decisions (e.g. the embedding backend).
+- **Memory store resets on redeploy.** SQLite on Render's ephemeral filesystem doesn't persist across restarts — a production version would use a hosted Postgres/Mongo instance.
+- **Entity extraction is LLM-based and imperfect.** Some knowledge graph triples are noisy or duplicated (e.g. casing inconsistencies).
+- **News/search coverage gaps.** Free-tier news APIs don't index every story, especially regional ones; the system is designed to say "I couldn't find relevant information" in that case rather than force an answer from off-topic results — but this depends on the model correctly recognizing the mismatch.
+- **Self-check is a mitigation, not a guarantee.** It catches many but not all unsupported claims, and is itself an LLM call subject to the same class of error it's checking for.
+
+---
+
+## Project structure
+
+```
+├── api/                    # FastAPI app, /chat and /upload endpoints
+├── data_pipeline/          # scraping, cleaning, chunking, document loading
+├── vectorstore/            # Chroma embedding + retrieval
+├── knowledge_graph/        # Neo4j entity/relation extraction and querying
+├── graph_workflow/         # LangGraph node definitions and graph assembly
+├── memory/                 # long-term user memory (SQLite)
+├── tools/                  # live news/web search
+├── rag/                    # RAG answer generation
+├── evaluation/             # RAGAS-based evaluation
+├── frontend/               # dashboard UI (vanilla JS)
+└── scripts/                # pipeline orchestration
+```
