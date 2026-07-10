@@ -275,6 +275,36 @@
   }
   .suggestion-chip:hover { border-color: var(--node-rag); color: var(--text); }
 
+  .msg-sources {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 12px;
+    margin-top: 2px;
+    background: color-mix(in srgb, var(--node-rag) 6%, transparent);
+    border: 1px solid color-mix(in srgb, var(--node-rag) 18%, transparent);
+    border-radius: 10px;
+    max-width: 100%;
+  }
+  .msg-sources .msg-sources-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--node-rag);
+    opacity: 0.8;
+    margin-bottom: 2px;
+  }
+  .msg-sources a {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+    word-break: break-all;
+    line-height: 1.5;
+  }
+  .msg-sources a:hover { color: var(--node-rag); text-decoration: underline; }
+
   .typing-dots { display: inline-flex; gap: 4px; align-items: center; padding: 3px 0; }
   .typing-dots span {
     width: 5px; height: 5px; border-radius: 50%;
@@ -639,6 +669,24 @@ function addMessage(role, text, meta) {
     wrap.appendChild(metaRow);
   }
 
+  if (meta && meta.sources && meta.sources.length > 0) {
+    const srcWrap = document.createElement('div');
+    srcWrap.className = 'msg-sources';
+    const label = document.createElement('div');
+    label.className = 'msg-sources-label';
+    label.textContent = 'Sources';
+    srcWrap.appendChild(label);
+    meta.sources.forEach(url => {
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = url;
+      srcWrap.appendChild(a);
+    });
+    wrap.appendChild(srcWrap);
+  }
+
   if (meta && meta.suggestions && meta.suggestions.length > 0) {
     const suggWrap = document.createElement('div');
     suggWrap.className = 'suggestions';
@@ -724,7 +772,7 @@ async function sendMessage() {
     const data = await res.json();
 
     typingEl.remove();
-    addMessage('bot', data.answer || '(no answer returned)', { route: data.route, suggestions: data.suggestions });
+    addMessage('bot', data.answer || '(no answer returned)', { route: data.route, suggestions: data.suggestions, sources: data.sources });
     renderPipeline(data.route);
     renderSources(data.sources);
     refreshMemory();
